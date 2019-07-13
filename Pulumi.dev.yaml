@@ -1,0 +1,7 @@
+config:
+  aws:region: us-east-1
+  slack:channel: '#stack-overflow'
+  slack:webhookUrl: https://hooks.slack.com/services/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
+  stackOverflow:apiKey:
+    secure: AAABAAFvX87ul4UBSNg1EOeYz08qR0dbNQI0+7q88X1IYiUysffaHNUYfBxqMnk0v+104HOnjUs=
+  stackOverflow:searchKeyword: pulumi
