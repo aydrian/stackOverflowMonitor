@@ -93,8 +93,19 @@ const getStackOverflowQuestions = aws.cloudwatch.onSchedule(
   async event => {
     try {
       const client = new aws.sdk.DynamoDB.DocumentClient();
-      const url = `https://api.stackexchange.com/2.2/search/advanced?pagesize=1&order=desc&sort=creation&site=stackoverflow&q=${soSearchKeyword}&key=${soApiKey}`;
-      let res = await axios.get(url);
+      let res = await axios.get(
+        "https://api.stackexchange.com/2.2/search/advanced",
+        {
+          params: {
+            pagesize: 1,
+            order: "desc",
+            sort: "creation",
+            site: "stackoverflow",
+            q: soSearchKeyword,
+            key: soApiKey
+          }
+        }
+      );
       const {
         items: [question]
       } = res.data;
