@@ -89,7 +89,7 @@ const sendToSlack = async (q: {
 // A lambda function that runs every 20 minutes
 const getStackOverflowQuestions = aws.cloudwatch.onSchedule(
   "getStackOverflowQuestions",
-  "rate(20 minute)",
+  "rate(20 minutes)",
   async event => {
     try {
       const client = new aws.sdk.DynamoDB.DocumentClient();
@@ -99,13 +99,21 @@ const getStackOverflowQuestions = aws.cloudwatch.onSchedule(
         items: [question]
       } = res.data;
       // is question in db?
+      console.log(
+        `GET QUESTIONS: question_id = ${
+          question.question_id
+        } type ${typeof question.question_id}`
+      );
       const result = await client
         .query({
-          ExpressionAttributeValues: {
-            ":qid": { N: question.question_id }
+          TableName: questions.name.get(),
+          KeyConditionExpression: "#qid = :qid",
+          ExpressionAttributeNames: {
+            "#qid": "question_id"
           },
-          KeyConditionExpression: "question_id = :qid",
-          TableName: questions.name.get()
+          ExpressionAttributeValues: {
+            ":qid": question.question_id
+          }
         })
         .promise();
       // if no, add to db and send to slack
