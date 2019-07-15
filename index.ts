@@ -1,6 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import axios from "axios";
+import { DocumentClient } from "aws-sdk/clients/dynamodb";
 
 const soConfig = new pulumi.Config("stackOverflow");
 const soApiKey = soConfig.require("apiKey");
@@ -11,6 +12,18 @@ const slackChannel = slackConfig.require("channel");
 const slackWebhookUrl = slackConfig.require("webhookUrl");
 const slackIconUrl =
   "http://cdn.sstatic.net/stackexchange/img/logos/so/so-icon.png";
+
+type StackOverflowQueston = {
+  link: string;
+  owner: { display_name: string; link: string; profile_image: string };
+  title: string;
+  creation_date: Date;
+  view_count: number;
+  answer_count: number;
+  comment_count: number;
+  is_answered: boolean;
+  tags: Array<string>;
+};
 
 // Create a table `questions` with `question_id` as primary key
 const questions = new aws.dynamodb.Table("stackoverflow-questions", {
@@ -25,16 +38,8 @@ const questions = new aws.dynamodb.Table("stackoverflow-questions", {
 });
 
 // Takes a question and posts it to Slack via a webhook.
-const sendToSlack = async (q: {
-  link: string;
-  owner: { display_name: any; link: any; profile_image: any };
-  title: any;
-  creation_date: any;
-  view_count: any;
-  answer_count: any;
-  is_answered: any;
-  tags: { join: (arg0: string) => void };
-}) => {
+// TODO: Should this function fire on Insert event?
+const sendToSlack = async (q: StackOverflowQueston) => {
   let requestData = {
     channel: slackChannel,
     icon_url: slackIconUrl,
@@ -61,6 +66,11 @@ const sendToSlack = async (q: {
             short: true
           },
           {
+            title: "# Comments",
+            value: q.comment_count,
+            short: true
+          },
+          {
             title: "# Answers",
             value: q.answer_count,
             short: true
@@ -81,9 +91,27 @@ const sendToSlack = async (q: {
   };
   try {
     const res = await axios.post(slackWebhookUrl, requestData);
+    console.log(`SEND TO SLACK response: ${JSON.stringify(res.data)}`);
   } catch (err) {
     console.log(`SEND TO SLACK error: ${JSON.stringify(err.stack)}`);
   }
+};
+
+const questionExists = async (client: DocumentClient, question_id: number) => {
+  const result = await client
+    .query({
+      TableName: questions.name.get(),
+      KeyConditionExpression: "#qid = :qid",
+      ExpressionAttributeNames: {
+        "#qid": "question_id"
+      },
+      ExpressionAttributeValues: {
+        ":qid": question_id
+      }
+    })
+    .promise();
+  const { Count: count = 0 } = result;
+  return count > 0;
 };
 
 // A lambda function that runs every 20 minutes
@@ -106,36 +134,42 @@ const getStackOverflowQuestions = aws.cloudwatch.onSchedule(
           }
         }
       );
-      const {
+      let {
         items: [question]
       } = res.data;
-      // is question in db?
+
+      // TODO: Is this needed? Will it fail to insert a duplicate question_id?
+      const exists = await questionExists(client, question.question_id);
       console.log(
-        `GET QUESTIONS: question_id = ${
-          question.question_id
-        } type ${typeof question.question_id}`
+        `GET QUESTION: question_id ${question.question_id} Exists? ${exists}`
       );
-      const result = await client
-        .query({
-          TableName: questions.name.get(),
-          KeyConditionExpression: "#qid = :qid",
-          ExpressionAttributeNames: {
-            "#qid": "question_id"
-          },
-          ExpressionAttributeValues: {
-            ":qid": question.question_id
+      if (!exists) {
+        console.log(
+          `GET QUESTION: processing question_id ${question.question_id}`
+        );
+        // Get comment count
+        res = await axios.get(
+          `https://api.stackexchange.com/2.2/questions/${
+            question.question_id
+          }/comments`,
+          {
+            params: {
+              order: "desc",
+              sort: "creation",
+              site: "stackoverflow",
+              key: soApiKey
+            }
           }
-        })
-        .promise();
-      // if no, add to db and send to slack
-      if (result.Count === 0) {
+        );
+        const { items } = res.data;
+        question.comment_count = items.length;
         await client
           .put({
             TableName: questions.name.get(),
             Item: question
           })
           .promise();
-        sendToSlack(question);
+        await sendToSlack(question);
       }
     } catch (err) {
       console.log(`GET QUESTIONS error: ${JSON.stringify(err.stack)}`);
