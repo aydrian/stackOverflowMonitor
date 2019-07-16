@@ -43,7 +43,7 @@ $ pulumi config set slack:webhookUrl https://your.url
 1. Set your Stack Exchange API Key as a secret
 
 ```bash
-$ pulumi config set --secrret stackOverflow:apiKey YOUR_API_KEY
+$ pulumi config set --secret stackOverflow:apiKey YOUR_API_KEY
 ```
 
 1. Set the Keyword you are interested in monitoring
