@@ -3,12 +3,7 @@ import * as aws from "@pulumi/aws";
 import axios from "axios";
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import * as stackOverflow from "./stackOverflow";
-
-const slackConfig = new pulumi.Config("slack");
-const slackChannel = slackConfig.require("channel");
-const slackWebhookUrl = slackConfig.require("webhookUrl");
-const slackIconUrl =
-  "http://cdn.sstatic.net/stackexchange/img/logos/so/so-icon.png";
+import * as slack from "./slack";
 
 // Create a table `questions` with `question_id` as primary key
 const questions = new aws.dynamodb.Table("stackoverflow-questions", {
@@ -21,66 +16,6 @@ const questions = new aws.dynamodb.Table("stackoverflow-questions", {
   hashKey: "question_id",
   billingMode: "PAY_PER_REQUEST"
 });
-
-// Takes a question and posts it to Slack via a webhook.
-// TODO: Should this function fire on Insert event?
-const sendToSlack = async (q: stackOverflow.Question) => {
-  let requestData = {
-    channel: slackChannel,
-    icon_url: slackIconUrl,
-    username: "StackOverflow",
-    text: "New question on <" + q.link + "|" + "StackOverflow>",
-    unfurl_links: true,
-    attachments: [
-      {
-        fallback: "New question on StackOverflow",
-        color: "#36a64f",
-        author_name: q.owner.display_name,
-        author_link: q.owner.link,
-        author_icon: q.owner.profile_image,
-        title: q.title,
-        title_link: q.link,
-        footer: "SlackOverflow Notification",
-        footer_icon: slackIconUrl,
-        ts: q.creation_date,
-        unfurl_links: true,
-        fields: [
-          {
-            title: "# Views",
-            value: q.view_count,
-            short: true
-          },
-          {
-            title: "# Comments",
-            value: q.comment_count,
-            short: true
-          },
-          {
-            title: "# Answers",
-            value: q.answer_count,
-            short: true
-          },
-          {
-            title: "Answered",
-            value: q.is_answered ? "✅" : "🚫",
-            short: true
-          },
-          {
-            title: "Tags",
-            value: q.tags.join(", "),
-            short: true
-          }
-        ]
-      }
-    ]
-  };
-  try {
-    const res = await axios.post(slackWebhookUrl, requestData);
-    console.log(`SEND TO SLACK response: ${JSON.stringify(res.data)}`);
-  } catch (err) {
-    console.log(`SEND TO SLACK error: ${JSON.stringify(err.stack)}`);
-  }
-};
 
 const questionExists = async (client: DocumentClient, question_id: number) => {
   const result = await client
@@ -128,7 +63,7 @@ const getStackOverflowQuestions = aws.cloudwatch.onSchedule(
             Item: { ...question, comment_count: comments.length }
           })
           .promise();
-        await sendToSlack(question);
+        await slack.sendToSlack(question);
       }
     } catch (err) {
       console.log(`GET QUESTIONS error: ${JSON.stringify(err.stack)}`);
