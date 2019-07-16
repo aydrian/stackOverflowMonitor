@@ -2,28 +2,13 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import axios from "axios";
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
-
-const soConfig = new pulumi.Config("stackOverflow");
-const soApiKey = soConfig.require("apiKey");
-const soSearchKeyword = soConfig.require("searchKeyword");
+import * as stackOverflow from "./stackOverflow";
 
 const slackConfig = new pulumi.Config("slack");
 const slackChannel = slackConfig.require("channel");
 const slackWebhookUrl = slackConfig.require("webhookUrl");
 const slackIconUrl =
   "http://cdn.sstatic.net/stackexchange/img/logos/so/so-icon.png";
-
-type StackOverflowQueston = {
-  link: string;
-  owner: { display_name: string; link: string; profile_image: string };
-  title: string;
-  creation_date: Date;
-  view_count: number;
-  answer_count: number;
-  comment_count: number;
-  is_answered: boolean;
-  tags: Array<string>;
-};
 
 // Create a table `questions` with `question_id` as primary key
 const questions = new aws.dynamodb.Table("stackoverflow-questions", {
@@ -39,7 +24,7 @@ const questions = new aws.dynamodb.Table("stackoverflow-questions", {
 
 // Takes a question and posts it to Slack via a webhook.
 // TODO: Should this function fire on Insert event?
-const sendToSlack = async (q: StackOverflowQueston) => {
+const sendToSlack = async (q: stackOverflow.Question) => {
   let requestData = {
     channel: slackChannel,
     icon_url: slackIconUrl,
@@ -121,22 +106,8 @@ const getStackOverflowQuestions = aws.cloudwatch.onSchedule(
   async event => {
     try {
       const client = new aws.sdk.DynamoDB.DocumentClient();
-      let res = await axios.get(
-        "https://api.stackexchange.com/2.2/search/advanced",
-        {
-          params: {
-            pagesize: 1,
-            order: "desc",
-            sort: "creation",
-            site: "stackoverflow",
-            q: soSearchKeyword,
-            key: soApiKey
-          }
-        }
-      );
-      let {
-        items: [question]
-      } = res.data;
+      // Just grabbing the first question for now.
+      const [question] = await stackOverflow.getQuestions();
 
       // TODO: Is this needed? Will it fail to insert a duplicate question_id?
       const exists = await questionExists(client, question.question_id);
@@ -148,20 +119,9 @@ const getStackOverflowQuestions = aws.cloudwatch.onSchedule(
           `GET QUESTION: processing question_id ${question.question_id}`
         );
         // Get comment count
-        res = await axios.get(
-          `https://api.stackexchange.com/2.2/questions/${
-            question.question_id
-          }/comments`,
-          {
-            params: {
-              order: "desc",
-              sort: "creation",
-              site: "stackoverflow",
-              key: soApiKey
-            }
-          }
+        const comments = await stackOverflow.getQuestionComments(
+          question.question_id
         );
-        const { items: comments } = res.data;
         await client
           .put({
             TableName: questions.name.get(),
