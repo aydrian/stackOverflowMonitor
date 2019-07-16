@@ -6,6 +6,8 @@ A simple serverless app to monitor Stack Overflow in Slack.
 
 This Pulumi application will create a DynamoDB table and a Lambda Function that will run every 20 minutes, querying StackOverflow, saving the results to the database, and outputting them to a Slack channel.
 
+![Example of notification in Slack](./resources/example_slack.png)
+
 ## Pre-requisites
 
 - [Pulumi configured for AWS](https://www.pulumi.com/docs/quickstart/aws/)
