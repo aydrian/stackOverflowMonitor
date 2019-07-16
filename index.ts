@@ -1,6 +1,4 @@
-import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
-import axios from "axios";
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import * as stackOverflow from "./stackOverflow";
 import * as slack from "./slack";
