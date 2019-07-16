@@ -6,15 +6,27 @@ const soApiKey = soConfig.require("apiKey");
 const soSearchKeyword = soConfig.require("searchKeyword");
 
 export interface Question {
-  link: string;
-  owner: { display_name: string; link: string; profile_image: string };
-  title: string;
-  creation_date: Date;
+  tags: Array<string>;
+  owner: {
+    reputation: number;
+    user_id: number;
+    user_type: string;
+    accept_rate: number;
+    profile_image: string;
+    display_name: string;
+    link: string;
+  };
+  is_answered: boolean;
   view_count: number;
   answer_count: number;
+  score: number;
+  last_activity_date: Date;
+  creation_date: Date;
+  last_edit_date: Date;
+  question_id: number;
+  link: string;
+  title: string;
   comment_count: number;
-  is_answered: boolean;
-  tags: Array<string>;
 }
 
 export const getQuestions = async () => {
