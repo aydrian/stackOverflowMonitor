@@ -161,12 +161,11 @@ const getStackOverflowQuestions = aws.cloudwatch.onSchedule(
             }
           }
         );
-        const { items } = res.data;
-        question.comment_count = items.length;
+        const { items: comments } = res.data;
         await client
           .put({
             TableName: questions.name.get(),
-            Item: question
+            Item: { ...question, comment_count: comments.length }
           })
           .promise();
         await sendToSlack(question);

@@ -1,3 +1,18 @@
 name: stackOverflowMonitor
 runtime: nodejs
 description: A simple application to monitor Stack Overflow.
+template:
+  config:
+    aws:region:
+      description: The AWS region to deploy into
+      default: us-east-1
+    slack:channel:
+      description: The slack channel to post to
+      default: #stack-overflow
+    slack:webhookUrl:
+      description: The Incoming Webhook to use to post messages to slack
+    stackOverflow:apiKey:
+      description: The API key to access Stack Exchange API
+      secret: true
+    stackOverflow:searchKeyword:
+      description: The keyword you are intested in monitoring
